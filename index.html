@@ -962,6 +962,19 @@ function reset() {
 /* ---- Download helpers ---- */
 
 function triggerDownload(blob, mime) {
+  // iOS Safari ignores the <a download> attribute for blob URLs and instead
+  // navigates the page to the blob, playing the video fullscreen. When the user
+  // closes the player, the page reloads and all in-memory videos are lost.
+  // Use the Web Share API on iOS to present the native share sheet instead.
+  if (isIOS && navigator.canShare) {
+    const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+    const filename = 'video-' + ts + '.' + extForMime(mime);
+    const file = new File([blob], filename, { type: mime });
+    if (navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(() => {});
+      return;
+    }
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
