@@ -402,6 +402,7 @@ let chunks = [];
 let startTime = 0;
 let tick = null;
 let blobUrl = null;
+let recordedBlob = null;
 let fileSize = 0;
 
 const $ = id => document.getElementById(id);
@@ -523,10 +524,10 @@ function startRecording() {
   recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
 
   recorder.onstop = () => {
-    const blob = new Blob(chunks, { type: mime });
-    fileSize = blob.size;
+    recordedBlob = new Blob(chunks, { type: mime });
+    fileSize = recordedBlob.size;
     if (blobUrl) URL.revokeObjectURL(blobUrl);
-    blobUrl = URL.createObjectURL(blob);
+    blobUrl = URL.createObjectURL(recordedBlob);
     stopStream();
     const vid = $('video');
     vid.srcObject = null;
@@ -570,6 +571,7 @@ function updateSizeMeter() {
 
 function reset() {
   if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
+  recordedBlob = null;
   const vid = $('video');
   vid.srcObject = null;
   vid.src = '';
@@ -580,12 +582,14 @@ function reset() {
 }
 
 function download() {
-  if (!blobUrl) return;
+  if (!recordedBlob) return;
+  const url = URL.createObjectURL(recordedBlob);
   const a = document.createElement('a');
-  a.href = blobUrl;
+  a.href = url;
   const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
   a.download = 'video-' + ts + '.webm';
   a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
 
 updateButtons();
