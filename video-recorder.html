@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Video Recorder</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0c1019;
+    --surface: #151b28;
+    --surface-2: #1c2435;
+    --border: #2a3349;
+    --text: #e2e8f0;
+    --text-dim: #7b8ba5;
+    --blue: #3b82f6;
+    --blue-glow: rgba(59, 130, 246, 0.25);
+    --red: #ef4444;
+    --red-glow: rgba(239, 68, 68, 0.3);
+    --green: #10b981;
+    --green-glow: rgba(16, 185, 129, 0.25);
+    --amber: #f59e0b;
+    --radius: 12px;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background-image:
+      radial-gradient(ellipse 600px 400px at 30% 20%, rgba(59,130,246,0.06), transparent),
+      radial-gradient(ellipse 500px 350px at 70% 80%, rgba(139,92,246,0.05), transparent);
+  }
+
+  .recorder {
+    width: 100%;
+    max-width: 520px;
+    background: var(--surface);
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
+  }
+
+  /* Header */
+  .header {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .header .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    background: var(--surface-2);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+
+  /* Video */
+  .video-wrap {
+    position: relative;
+    background: #000;
+    aspect-ratio: 4/3;
+    overflow: hidden;
+  }
+  .video-wrap video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .video-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    gap: 10px;
+    background: linear-gradient(180deg, #0a0f18, #111827);
+  }
+  .video-placeholder svg { opacity: 0.4; }
+  .video-placeholder span { font-size: 13px; opacity: 0.6; }
+
+  /* Recording overlay */
+  .rec-badge {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(8px);
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(239,68,68,0.3);
+  }
+  .rec-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  .rec-badge span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #fff;
+  }
+
+  .flip-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 50%;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #fff;
+    transition: background 0.2s;
+  }
+  .flip-btn:hover { background: rgba(255,255,255,0.15); }
+
+  /* Size meter */
+  .size-meter {
+    padding: 10px 20px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .size-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 5px;
+  }
+  .size-bar {
+    height: 5px;
+    background: var(--surface-2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .size-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease, background 0.3s;
+    background: var(--blue);
+  }
+  .size-fill.warn { background: var(--amber); }
+  .size-fill.danger { background: var(--red); }
+
+  /* Controls area */
+  .controls {
+    padding: 16px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Quality selector */
+  .quality-row {
+    display: flex;
+    gap: 6px;
+  }
+  .quality-btn {
+    flex: 1;
+    padding: 10px 6px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .quality-btn .q-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .quality-btn .q-rate {
+    display: block;
+    font-size: 10px;
+    margin-top: 2px;
+    opacity: 0.7;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .quality-btn.active {
+    border-color: var(--blue);
+    background: var(--blue-glow);
+    color: #93bbfd;
+  }
+  .quality-btn:hover:not(.active) {
+    border-color: #3a4560;
+    background: var(--surface-2);
+  }
+
+  /* Buttons */
+  .btn-row {
+    display: flex;
+    gap: 10px;
+  }
+  .btn {
+    flex: 1;
+    padding: 13px 18px;
+    border-radius: 10px;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--blue);
+    color: #fff;
+    box-shadow: 0 4px 16px var(--blue-glow);
+  }
+  .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .btn-record {
+    background: var(--red);
+    color: #fff;
+    box-shadow: 0 4px 16px var(--red-glow);
+  }
+  .btn-record:hover { filter: brightness(1.1); }
+  .btn-stop {
+    background: var(--red);
+    color: #fff;
+    box-shadow: 0 4px 16px var(--red-glow);
+    animation: glow-red 2s ease-in-out infinite;
+  }
+  .btn-download {
+    background: var(--green);
+    color: #fff;
+    box-shadow: 0 4px 16px var(--green-glow);
+  }
+  .btn-download:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    flex: 0 0 auto;
+  }
+  .btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+
+  .rec-icon {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #fff;
+  }
+  .stop-icon {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    background: #fff;
+  }
+
+  /* Error */
+  .error-box {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: #fca5a5;
+    font-size: 13px;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  .hint {
+    color: var(--text-dim);
+    font-size: 11px;
+    text-align: center;
+    line-height: 1.5;
+    opacity: 0.7;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+  @keyframes glow-red {
+    0%, 100% { box-shadow: 0 4px 16px var(--red-glow); }
+    50% { box-shadow: 0 4px 28px rgba(239,68,68,0.5); }
+  }
+
+  @media (max-width: 400px) {
+    .quality-btn .q-label { font-size: 12px; }
+    .btn { font-size: 14px; padding: 12px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="recorder">
+  <div class="header">
+    <h1>📹 Email Video Recorder</h1>
+    <span class="badge">25 MB max</span>
+  </div>
+
+  <div class="video-wrap">
+    <video id="video" playsinline></video>
+    <div class="video-placeholder" id="placeholder">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </svg>
+      <span>Tap "Start Camera" below</span>
+    </div>
+    <div class="rec-badge" id="recBadge" style="display:none">
+      <div class="rec-dot"></div>
+      <span id="timer">00:00</span>
+    </div>
+    <button class="flip-btn" id="flipBtn" style="display:none" title="Flip camera">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
+        <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="size-meter" id="sizeMeter" style="display:none">
+    <div class="size-labels">
+      <span id="sizeLabel">0 KB</span>
+      <span id="limitLabel">25 MB limit</span>
+    </div>
+    <div class="size-bar">
+      <div class="size-fill" id="sizeFill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="quality-row" id="qualityRow">
+      <button class="quality-btn" data-q="low" onclick="setQuality('low')">
+        <span class="q-label">Small</span>
+        <span class="q-rate">~1 MB/min</span>
+      </button>
+      <button class="quality-btn active" data-q="medium" onclick="setQuality('medium')">
+        <span class="q-label">Medium</span>
+        <span class="q-rate">~3 MB/min</span>
+      </button>
+      <button class="quality-btn" data-q="high" onclick="setQuality('high')">
+        <span class="q-label">Larger</span>
+        <span class="q-rate">~6 MB/min</span>
+      </button>
+    </div>
+
+    <div class="btn-row" id="btnRow">
+      <button class="btn btn-primary" id="btnStart" onclick="startCamera()">Start Camera</button>
+    </div>
+
+    <div class="error-box" id="errorBox" style="display:none"></div>
+    <p class="hint">Recording auto-stops at 25 MB. Download and attach to your email.</p>
+  </div>
+</div>
+
+<script>
+const MAX_BYTES = 25 * 1024 * 1024;
+const PRESETS = {
+  low:    { bps: 150000,  w: 480,  h: 360  },
+  medium: { bps: 400000,  w: 640,  h: 480  },
+  high:   { bps: 800000,  w: 1280, h: 720  },
+};
+
+let quality = 'medium';
+let state = 'idle'; // idle | previewing | recording | recorded
+let facingMode = 'user';
+let stream = null;
+let recorder = null;
+let chunks = [];
+let startTime = 0;
+let tick = null;
+let blobUrl = null;
+let fileSize = 0;
+
+const $ = id => document.getElementById(id);
+
+function fmt(s) {
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+function fmtSize(b) {
+  return b < 1048576 ? (b/1024).toFixed(0) + ' KB' : (b/1048576).toFixed(1) + ' MB';
+}
+
+function setQuality(q) {
+  quality = q;
+  document.querySelectorAll('.quality-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.q === q)
+  );
+}
+
+function stopStream() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+}
+
+function showError(msg) {
+  $('errorBox').textContent = msg;
+  $('errorBox').style.display = 'block';
+}
+function clearError() { $('errorBox').style.display = 'none'; }
+
+function updateButtons() {
+  const row = $('btnRow');
+  const qRow = $('qualityRow');
+
+  if (state === 'idle') {
+    row.innerHTML = '<button class="btn btn-primary" onclick="startCamera()">Start Camera</button>';
+    $('placeholder').style.display = 'flex';
+    $('recBadge').style.display = 'none';
+    $('flipBtn').style.display = 'none';
+    $('sizeMeter').style.display = 'none';
+    qRow.style.display = 'flex';
+  }
+  else if (state === 'previewing') {
+    row.innerHTML =
+      '<button class="btn btn-ghost" onclick="cancelCamera()">Cancel</button>' +
+      '<button class="btn btn-record" onclick="startRecording()"><span class="rec-icon"></span> Record</button>';
+    $('placeholder').style.display = 'none';
+    $('recBadge').style.display = 'none';
+    $('flipBtn').style.display = 'flex';
+    $('sizeMeter').style.display = 'none';
+    qRow.style.display = 'flex';
+  }
+  else if (state === 'recording') {
+    row.innerHTML =
+      '<button class="btn btn-stop" onclick="stopRecording()"><span class="stop-icon"></span> Stop Recording</button>';
+    $('recBadge').style.display = 'flex';
+    $('flipBtn').style.display = 'none';
+    $('sizeMeter').style.display = 'block';
+    qRow.style.display = 'none';
+  }
+  else if (state === 'recorded') {
+    row.innerHTML =
+      '<button class="btn btn-ghost" onclick="reset()">New</button>' +
+      '<button class="btn btn-download" onclick="download()">⬇ Download (' + fmtSize(fileSize) + ')</button>';
+    $('recBadge').style.display = 'none';
+    $('flipBtn').style.display = 'none';
+    $('sizeMeter').style.display = 'block';
+    qRow.style.display = 'none';
+  }
+}
+
+async function startCamera() {
+  clearError();
+  stopStream();
+  const p = PRESETS[quality];
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: p.w }, height: { ideal: p.h } },
+      audio: true
+    });
+    const vid = $('video');
+    vid.srcObject = stream;
+    vid.muted = true;
+    vid.controls = false;
+    vid.play();
+    state = 'previewing';
+    updateButtons();
+  } catch(e) {
+    showError('Camera access denied. Please allow camera & microphone in your browser settings, then reload.');
+  }
+}
+
+function cancelCamera() {
+  stopStream();
+  const vid = $('video');
+  vid.srcObject = null;
+  state = 'idle';
+  updateButtons();
+}
+
+function flipCamera() {
+  facingMode = facingMode === 'user' ? 'environment' : 'user';
+  startCamera();
+}
+$('flipBtn').addEventListener('click', flipCamera);
+
+function startRecording() {
+  if (!stream) return;
+  chunks = [];
+  const p = PRESETS[quality];
+  const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+    ? 'video/webm;codecs=vp9'
+    : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
+    ? 'video/webm;codecs=vp8'
+    : MediaRecorder.isTypeSupported('video/webm')
+    ? 'video/webm'
+    : 'video/mp4';
+
+  recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: p.bps });
+
+  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: mime });
+    fileSize = blob.size;
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    blobUrl = URL.createObjectURL(blob);
+    stopStream();
+    const vid = $('video');
+    vid.srcObject = null;
+    vid.src = blobUrl;
+    vid.muted = false;
+    vid.controls = true;
+    state = 'recorded';
+    updateSizeMeter();
+    updateButtons();
+  };
+
+  recorder.start(1000);
+  startTime = Date.now();
+  fileSize = 0;
+  state = 'recording';
+  updateButtons();
+
+  tick = setInterval(() => {
+    const secs = Math.floor((Date.now() - startTime) / 1000);
+    $('timer').textContent = fmt(secs);
+    fileSize = (p.bps / 8) * secs;
+    updateSizeMeter();
+    if (fileSize >= MAX_BYTES) stopRecording();
+  }, 500);
+}
+
+function stopRecording() {
+  clearInterval(tick);
+  if (recorder && recorder.state !== 'inactive') recorder.stop();
+}
+
+function updateSizeMeter() {
+  const pct = Math.min(100, (fileSize / MAX_BYTES) * 100);
+  const fill = $('sizeFill');
+  fill.style.width = pct + '%';
+  fill.className = 'size-fill' + (pct > 90 ? ' danger' : pct > 70 ? ' warn' : '');
+  $('sizeLabel').textContent = fmtSize(fileSize);
+  $('limitLabel').textContent = pct >= 100 ? 'Max size reached!' : '25 MB limit';
+  $('limitLabel').style.color = pct > 80 ? '#f59e0b' : '';
+}
+
+function reset() {
+  if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
+  const vid = $('video');
+  vid.srcObject = null;
+  vid.src = '';
+  vid.controls = false;
+  fileSize = 0;
+  state = 'idle';
+  updateButtons();
+}
+
+function download() {
+  if (!blobUrl) return;
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+  a.download = 'video-' + ts + '.webm';
+  a.click();
+}
+
+updateButtons();
+</script>
+</body>
+</html>
